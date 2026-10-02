@@ -492,7 +492,7 @@ header{padding-inline:max(16px,env(safe-area-inset-right));padding-top:max(14px,
         <button class="buttonb" onclick="generateDailyPaymentReport()">تقرير الدفعات اليومية</button>
         <button class="back buttonb " onclick="location.href='all in one.html'"> ← عودة</button>
 
-        </div><div class="view" data-v="txn" hidden=""><section id="txnReport" style="margin-top:20px"><style>tr.exr td{background:#fef2f2!important}.noprint-x{display:none}</style>
+        </div><div class="view" data-v="txn" hidden=""><section id="txnReport" style="margin-top:20px"><style>tr.exr td{background:#fef2f2!important}.noprint-x{display:none}@media print{#txnReport .act-col{display:none!important}}@media (max-width:720px){#txnReport tr.tot .act-col{display:none}}</style>
 <h2>📅 تقرير المعاملات</h2>
 <div class="grid2"><label>الفترة<select id="tr-p"><option value="today">اليوم</option><option value="yesterday">أمس</option><option value="week">هذا الأسبوع (من السبت)</option><option value="month">هذا الشهر</option><option value="year">هذه السنة</option><option value="day">تاريخ محدد</option><option value="range">فترة مخصصة</option></select></label>
 <label>نوع المعاملات<select id="tr-k"><option value="all">الفواتير والدفعات معًا</option><option value="i">الفواتير فقط</option><option value="p">الدفعات فقط</option><option value="x">الدفعات المُستثناة (أكبر من الرصيد) فقط</option></select></label>
@@ -2054,21 +2054,130 @@ function printInv(code,i){const s=bySid(code),v=s&&s.invoices[i];if(!v)return;
  w.document.write(`<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${invLabel(v.no)}</title><style>body{font-family:Cairo,Tahoma,Arial;margin:28px;color:#111}h1{margin:0;color:#12355b}.top{display:flex;justify-content:space-between;border-bottom:3px solid #12355b;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin:16px 0}th,td{border:1px solid #cbd5e1;padding:9px;text-align:center}th{background:#e8f3f2}.tot{width:320px;margin-inline-start:auto}</style></head><body><div class="top"><div><h1>فاتورة</h1><div>رقم: ${invLabel(v.no)}</div><div>التاريخ: ${esc(v.date)}</div></div><div><b>${esc(s.name)}</b><div>كود المورد: ${s.code}</div>${s.company?`<div>${esc(s.company)}</div>`:''}${s.phone?`<div>${esc(s.phone)}</div>`:''}</div></div><table><thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead><tbody>${v.items.map((x,n)=>`<tr><td>${n+1}</td><td>${esc(x.name)}</td><td>${x.qty}</td><td>${money(x.price)}</td><td>${money(x.total)}</td></tr>`).join('')}</tbody></table><table class="tot"><tr><td>إجمالي الوحدات</td><td>${v.units}</td></tr><tr><td>إجمالي الفاتورة</td><td><b>${money(v.amount)} جنيه</b></td></tr>${v.notes?`<tr><td>ملاحظات</td><td>${esc(v.notes)}</td></tr>`:''}</table><script>onload=()=>print()<\/script></body></html>`);w.document.close()}
 window.printInvoice=printInv;
 
-/* ---- payment ---- */
-window.showAddPayment=function(code,amt){let cur=code!=null?suppliers.find(s=>s.code==code):null;
- const m=openModal('💸 دفعة لمورد',`<label>المورد<input type="text" id="pm-s" autocomplete="off" placeholder="اكتب الاسم أو الكود"></label><div id="pm-info" class="sinfo"></div>
- <div class="grid2"><label>المبلغ<input type="number" id="pm-a" min="0" step="any" inputmode="decimal"></label><label>التاريخ<input type="date" id="pm-d" value="${today()}"></label><label class="span2">ملاحظات<input type="text" id="pm-n"></label><div id="pm-ex-box" class="span2 newbox" hidden><b class="pos" id="pm-warn"></b><label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="pm-ex" style="width:auto;margin:0"> استثناء: السماح بدفعة أكبر من الرصيد (تُسجَّل دفعة مقدّمة وتظهر في التقارير)</label><input type="text" id="pm-r" placeholder="سبب الاستثناء (إلزامي)" hidden></div></div>`,'<button class="ok" id="pm-save">حفظ الدفعة</button>');
- const inp=$('#pm-s'),show=s=>{cur=s;$('#pm-info').innerHTML=s?infoHTML(s):'';chk()};
- function chk(){const a=parseFloat($('#pm-a').value)||0,ov=!!cur&&a>cur.currentBalance+.005;$('#pm-ex-box').hidden=!ov;
-  if(ov)$('#pm-warn').textContent=`⛔ المبلغ يتجاوز رصيد المورد (${money(cur.currentBalance)}) بمقدار ${money(a-cur.currentBalance)}`;$('#pm-r').hidden=!$('#pm-ex').checked}
- attachPicker(inp,{onPick:s=>{inp.value=s.name;show(s);$('#pm-a').focus()},onClear:()=>show(null)});
- if(cur){inp.value=cur.name;show(cur);if(amt)$('#pm-a').value=amt;$('#pm-a').focus()}else inp.focus();$('#pm-a').oninput=chk;$('#pm-ex').onchange=chk;chk();
- $('#pm-save').onclick=()=>{if(!cur){const t=inp.value.trim();cur=suppliers.find(s=>String(s.code)===t||norm(s.name)===norm(t))||null}
-  if(!cur)return toast('اختر موردًا من القائمة','bad');const a=parseFloat($('#pm-a').value);if(!(a>0))return toast('أدخل مبلغًا صحيحًا','bad');
-  const ov=a>cur.currentBalance+.005;if(ov&&(!$('#pm-ex').checked||val('#pm-r').length<3)){chk();return toast('المبلغ أكبر من رصيد المورد — فعّل الاستثناء واكتب السبب لإتمام الدفعة','bad')}
-  const ts=mkDate($('#pm-d').value),rec={amountPaid:a,date:ts.toLocaleString(),ts:ts.toISOString(),notes:val('#pm-n')};
-  if(ov)Object.assign(rec,{overpay:true,exReason:val('#pm-r'),balBefore:+cur.currentBalance.toFixed(2),excess:+(a-cur.currentBalance).toFixed(2)});cur.payments.push(rec);cur.currentBalance-=a;{const gp=getThreeGroupPaymentsFromStorage();delete gp[cur.code];saveThreeGroupPaymentsToStorage(gp)}
-  commit();closeModal();const b=$('#supplierSearch');b.value=cur.name;b.dataset.code=cur.code;searchSupplier(cur.code);toast(`تم تسجيل دفعة ${money(a)} للمورد ${cur.name}`)}};
+/* ---- payment (batch: multiple suppliers in one table) ---- */
+(function(){const st=document.createElement('style');st.id='bp-style';st.textContent=`
+.bp-t{width:100%;min-width:760px}
+.bp-t th,.bp-t td{text-align:center;vertical-align:middle;padding:8px}
+.bp-t td.bp-sup{text-align:right;min-width:240px}
+.bp-t input[type=text],.bp-t input[type=number]{margin:0}
+.bp-t .bp-a{max-width:160px;text-align:center;font-weight:700}
+.bp-t td.bp-n{width:36px;color:var(--mut)}
+.bp-t tr.bp-ex td{background:#fffbeb!important;text-align:right}
+.bp-t .bp-act{white-space:nowrap}.bp-t .bp-act button{margin:0 2px}
+.bp-t tfoot td{font-weight:800;background:#f1f5f9;font-size:1rem}
+.bp-t tr.bp-lk td{background:#f0fdf4!important}
+.bp-add{display:block;margin:12px auto 0;--bg-b:#1d4ed8}`;document.head.appendChild(st)})();
+
+function bpPlace(inp){const L=inp.parentNode&&inp.parentNode.querySelector('.sp-list');if(!L)return;
+ const r=inp.getBoundingClientRect(),w=Math.max(r.width,280),vh=window.innerHeight;
+ L.style.position='fixed';L.style.insetInline='auto';L.style.width=w+'px';L.style.maxHeight='260px';
+ L.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+'px';
+ if(vh-r.bottom<250&&r.top>vh-r.bottom){L.style.top='auto';L.style.bottom=(vh-r.top+2)+'px'}
+ else{L.style.bottom='auto';L.style.top=(r.bottom+2)+'px'}}
+
+function bpPrint(list,dateTxt,note,saved){
+ if(!list.length)return toast('لا توجد دفعات لطباعتها','bad');
+ const w=window.open('','_blank');if(!w)return toast('اسمح بالنوافذ المنبثقة للطباعة','bad');
+ const tot=list.reduce((a,x)=>a+x.a,0);
+ const rows=list.map((x,i)=>`<tr${x.over?' class="exr"':''}><td>${i+1}</td><td>${esc(x.code)}</td><td class="tl">${esc(x.name)}</td><td>${money(x.bal)}</td><td>${money(x.a)}</td><td>${money(x.aft)}</td><td class="tl">${x.over?'استثناء: '+esc(x.reason||''):''}</td></tr>`).join('');
+ w.document.write(`<html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تقرير الدفعات</title><style>
+@page{size:A4;margin:10mm}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#fff}
+body{font-family:Cairo,Tahoma,Arial,sans-serif;color:#000;font-size:12px;line-height:1.4}
+h2{margin:0 0 2px;font-size:16px}h3{margin:0 0 4px;font-size:13px}
+.sub{margin:0 0 8px;font-size:11px;color:#333}
+table{width:100%;border-collapse:collapse}
+thead{display:table-header-group}
+tr{break-inside:avoid;page-break-inside:avoid}
+th,td{border:1px solid #000;padding:4px 6px;text-align:center;vertical-align:middle}
+th{background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+td.tl{text-align:right}
+tr.exr td{background:#fee2e2;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tot td{font-weight:800;background:#e5e5e5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+</style></head><body><h2>إدارة حسابات الموردين</h2><h3>تقرير الدفعات${saved?'':' (مسودة غير محفوظة)'}</h3><div class="sub">${esc([ 'تاريخ الدفعات: '+dateTxt,note?'ملاحظات: '+note:'','طُبع في '+new Date().toLocaleString()].filter(Boolean).join(' · '))}</div>
+<table><thead><tr><th>#</th><th>الكود</th><th>المورد</th><th>الرصيد قبل الدفعة</th><th>مبلغ الدفعة</th><th>الرصيد بعد الدفعة</th><th>ملاحظات</th></tr></thead><tbody>${rows}<tr class="tot"><td colspan="4">إجمالي الدفعات (${list.length})</td><td>${money(tot)}</td><td colspan="2"></td></tr></tbody></table><script>onload=()=>print()<\/script></body></html>`);w.document.close()}
+
+window.showAddPayment=function(code,amt){
+ const blank=()=>({code:null,name:'',amt:'',lock:false,ex:false,reason:''});
+ const R=[blank()];
+ if(code!=null){const s0=suppliers.find(s=>s.code==code);if(s0){R[0].code=s0.code;R[0].name=s0.name;if(amt)R[0].amt=String(amt)}}
+ const sup=c=>c==null?null:(suppliers.find(s=>s.code==c)||null),num=v=>parseFloat(v)||0;
+ const m=openModal('💸 دفعات الموردين',`<div class="grid2"><label>تاريخ الدفعات<input type="date" id="bp-d" value="${today()}"></label><label>ملاحظات (تُسجَّل مع كل دفعة)<input type="text" id="bp-n"></label></div>
+ <table class="bp-t"><thead><tr><th>#</th><th>المورد (ابحث بالكود أو الاسم)</th><th>الرصيد الحالي</th><th>مبلغ الدفعة</th><th>الرصيد بعد الدفعة</th><th>إجراءات</th></tr></thead><tbody id="bp-tb"></tbody><tfoot><tr><td colspan="3" id="bp-cnt"></td><td id="bp-total"></td><td colspan="2"></td></tr></tfoot></table>
+ <button type="button" class="bp-add" id="bp-add">➕ إضافة دفعة أخرى</button>`,
+ `<button type="button" id="bp-print" style="--bg-b:#475569">🖨 طباعة التقرير</button><button type="button" class="ok" id="bp-save">💾 حفظ كل الدفعات</button>`);
+ m.dataset.keep='1';m.querySelector('.mdl-box').style.width='min(1100px,100%)';
+ const tb=$('#bp-tb',m),mb=$('.mdl-b',m);
+
+ function resolve(r){if(r.code==null){const t=r.name.trim();if(t){const s=suppliers.find(x=>String(x.code)===t||norm(x.name)===norm(t));if(s){r.code=s.code;r.name=s.name}}}}
+ function calc(){const used={};return R.map(r=>{resolve(r);const s=sup(r.code),a=num(r.amt);let bal=null,aft=null;
+  if(s){bal=s.currentBalance-(used[s.code]||0);aft=bal-a;if(a>0)used[s.code]=(used[s.code]||0)+a}
+  return{r,s,a,bal,aft,ok:!!s&&a>0,over:!!s&&a>0&&aft<-.005}})}
+
+ function rowHTML(c,i){const r=c.r;
+  const sc=r.lock?`<b>${esc(r.name)}</b> <span class="chip">${esc(r.code)}</span>`:`<input type="text" class="bp-s" data-i="${i}" autocomplete="off" placeholder="اكتب الكود أو الاسم..." value="${esc(r.name)}">`;
+  const ac=r.lock?`<b>${money(c.a)}</b>`:`<input type="number" class="bp-a" data-i="${i}" min="0" step="any" inputmode="decimal" placeholder="0.00" value="${esc(r.amt)}">`;
+  const act=r.lock?`<button type="button" class="edit-btn" data-act="edit" data-i="${i}">تعديل</button><button type="button" class="delete-btn" data-act="del" data-i="${i}">حذف</button>`
+   :`<button type="button" class="edit-btn" style="--bg-b:var(--ok)" data-act="lock" data-i="${i}">✔ حفظ</button><button type="button" class="delete-btn" data-act="del" data-i="${i}">حذف</button>`;
+  return`<tr data-r="${i}"${r.lock?' class="bp-lk"':''}><td class="bp-n">${i+1}</td><td class="bp-sup">${sc}</td><td class="bp-bal">—</td><td>${ac}</td><td class="bp-aft">—</td><td class="bp-act">${act}</td></tr>
+  <tr class="bp-ex" data-ex="${i}" hidden><td colspan="6"><b class="neg">⛔ المبلغ يتجاوز رصيد المورد بمقدار <span class="bp-exa"></span></b>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" class="bp-exc" data-i="${i}" style="width:auto;margin:0"${r.ex?' checked':''}> استثناء: السماح بدفعة أكبر من الرصيد (تُسجَّل دفعة مقدّمة وتظهر في التقارير)</label>
+  <input type="text" class="bp-exr" data-i="${i}" placeholder="سبب الاستثناء (إلزامي)" value="${esc(r.reason)}"${r.ex?'':' hidden'}></td></tr>`}
+
+ function update(){const C=calc();let tot=0,n=0;
+  C.forEach((c,i)=>{const tr=$(`tr[data-r="${i}"]`,tb),ex=$(`tr[data-ex="${i}"]`,tb);if(!tr)return;
+   $('.bp-bal',tr).textContent=c.bal==null?'—':money(c.bal);
+   const af=$('.bp-aft',tr);af.textContent=c.aft==null?'—':money(c.aft);af.className='bp-aft'+(c.over?' neg':(c.ok?' pos':''));af.style.fontWeight='700';
+   ex.hidden=!c.over;if(c.over)$('.bp-exa',ex).textContent=money(-c.aft);
+   $('.bp-exr',ex).hidden=!c.r.ex;
+   if(c.ok){tot+=c.a;n++}});
+  $('#bp-total',m).textContent=money(tot);$('#bp-cnt',m).textContent=`إجمالي مبلغ الدفعات (${n} دفعة)`;return C}
+
+ function render(){const C=calc();tb.innerHTML=C.map(rowHTML).join('');
+  $$('.bp-s',tb).forEach(inp=>{const i=+inp.dataset.i;
+   attachPicker(inp,{onPick:s=>{R[i].code=s.code;R[i].name=s.name;inp.value=s.name;update();const a=$(`.bp-a[data-i="${i}"]`,tb);a&&a.focus()},
+    onClear:()=>{R[i].code=null;R[i].name=inp.value;update()},
+    onEnter:()=>{const a=$(`.bp-a[data-i="${i}"]`,tb);a&&a.focus()}});
+   ['focus','input','keydown'].forEach(ev=>inp.addEventListener(ev,()=>bpPlace(inp)))});
+  update()}
+
+ function lock(i){const c=calc()[i];if(!c.s)return toast('اختر موردًا من القائمة','bad');if(!(c.a>0))return toast('أدخل مبلغًا صحيحًا','bad');R[i].lock=true;render()}
+ mb.addEventListener('scroll',()=>{const a=document.activeElement;if(a&&a.classList&&a.classList.contains('bp-s'))bpPlace(a)});
+ tb.addEventListener('input',e=>{const t=e.target,i=+t.dataset.i;if(t.classList.contains('bp-a')){R[i].amt=t.value;update()}else if(t.classList.contains('bp-exr'))R[i].reason=t.value});
+ tb.addEventListener('change',e=>{const t=e.target;if(t.classList.contains('bp-exc')){R[+t.dataset.i].ex=t.checked;update()}});
+ tb.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList.contains('bp-a')){e.preventDefault();lock(+e.target.dataset.i)}});
+ tb.addEventListener('click',e=>{const b=e.target.closest('button[data-act]');if(!b)return;const i=+b.dataset.i,a=b.dataset.act;
+  if(a==='lock')lock(i);
+  else if(a==='edit'){R[i].lock=false;render();const x=$(`.bp-a[data-i="${i}"]`,tb);x&&x.focus()}
+  else if(a==='del'){R.splice(i,1);if(!R.length)R.push(blank());render()}});
+ $('#bp-add',m).onclick=()=>{R.push(blank());render();const L=$$('.bp-s',tb).pop();if(L){L.scrollIntoView({block:'center'});L.focus()}};
+
+ const listFor=()=>calc().filter(c=>c.ok).map(c=>({code:c.s.code,name:c.s.name,bal:c.bal,a:c.a,aft:c.aft,over:c.over,reason:c.r.reason}));
+ const dTxt=()=>mkDate($('#bp-d').value).toLocaleDateString();
+ $('#bp-print',m).onclick=()=>bpPrint(listFor(),dTxt(),val('#bp-n'),false);
+
+ $('#bp-save',m).onclick=()=>{const C=calc(),V=[];
+  for(let i=0;i<C.length;i++){const c=C[i],r=c.r;if(r.code==null&&!r.name.trim()&&!num(r.amt))continue;
+   if(!c.s)return toast(`الصف ${i+1}: اختر موردًا من القائمة`,'bad');
+   if(!(c.a>0))return toast(`الصف ${i+1}: أدخل مبلغًا صحيحًا`,'bad');
+   if(c.over&&(!r.ex||r.reason.trim().length<3))return toast(`الصف ${i+1}: المبلغ أكبر من الرصيد — فعّل الاستثناء واكتب السبب`,'bad');
+   V.push(c)}
+  if(!V.length)return toast('أضف دفعة واحدة على الأقل','bad');
+  const base=mkDate($('#bp-d').value),note=val('#bp-n'),snap=[],codes=new Set();
+  V.forEach((c,k)=>{const s=c.s,a=c.a,ts=new Date(base.getTime()+k),ov=a>s.currentBalance+.005;
+   const rec={amountPaid:a,date:ts.toLocaleString(),ts:ts.toISOString(),notes:note};
+   if(ov)Object.assign(rec,{overpay:true,exReason:c.r.reason.trim(),balBefore:+s.currentBalance.toFixed(2),excess:+(a-s.currentBalance).toFixed(2)});
+   const before=s.currentBalance;s.payments.push(rec);s.currentBalance-=a;codes.add(s.code);
+   snap.push({code:s.code,name:s.name,bal:before,a,aft:s.currentBalance,over:ov,reason:c.r.reason.trim()})});
+  {const gp=getThreeGroupPaymentsFromStorage();codes.forEach(x=>delete gp[x]);saveThreeGroupPaymentsToStorage(gp)}
+  const dt=dTxt(),total=snap.reduce((x,y)=>x+y.a,0);
+  commit();closeModal();
+  if(codes.size===1){const only=[...codes][0],b=$('#supplierSearch');if(b){b.value=sup(only).name;b.dataset.code=only;searchSupplier(only)}}
+  toast(`تم تسجيل ${snap.length} دفعة بإجمالي ${money(total)}`);
+  setTimeout(()=>{if(confirm(`تم حفظ ${snap.length} دفعة بإجمالي ${money(total)}.\nهل تريد طباعة التقرير الآن؟`))bpPrint(snap,dt,note,true)},300)};
+
+ render();const f=$('.bp-s',tb)||$('.bp-a',tb);if(f)f.focus()};
 
 /* ---- statement ---- */
 window.searchSupplier=function(code){const inp=$('#supplierSearch'),box=$('#supplierAccountTable');let s=null;
@@ -2242,9 +2351,10 @@ function renderTxn(){const box=$('#tr-out');if(!box)return;
    E.push({y,s,v,ms,a:y==='i'?v.amount:v.amountPaid})}))});
  E.sort((a,b)=>a.ms-b.ms);
  const sum=L=>L.reduce((a,e)=>a+e.a,0),I=E.filter(e=>e.y==='i'),P=E.filter(e=>e.y==='p'),X=P.filter(e=>e.v.overpay);
+ const ai=e=>(e.y==='i'?e.s.invoices:e.s.payments).indexOf(e.v);
  const ex=e=>e.v.overpay?` <span class="chip bad">⚠ استثناء: زيادة ${money(e.v.excess)}</span> <small>السبب: ${esc(e.v.exReason)}</small>`:'';
  let body;
- if(g==='none')body=`<table><thead><tr><th>التاريخ</th><th>المورد</th><th>النوع</th><th>البيان</th><th>فاتورة (مدين)</th><th>دفعة (دائن)</th><th>ملاحظات</th></tr></thead><tbody>${E.map(e=>`<tr class="${e.v.overpay?'exr':''}"><td>${fmt(e.ms)}</td><td class="tl">${esc(e.s.name)}</td><td>${e.y==='i'?'🧾 فاتورة':'💸 دفعة'}</td><td>${e.y==='i'?invLabel(e.v.no):'—'}</td><td>${e.y==='i'?money(e.a):''}</td><td>${e.y==='p'?money(e.a):''}</td><td class="tl">${esc(e.v.notes||'')}${ex(e)}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد معاملات في هذه الفترة</td></tr>'}<tr class="tot"><td colspan="4">الإجمالي (${E.length} معاملة)</td><td>${money(sum(I))}</td><td>${money(sum(P))}</td><td></td></tr></tbody></table>`;
+ if(g==='none')body=`<table><thead><tr><th>التاريخ</th><th>المورد</th><th>النوع</th><th>البيان</th><th>فاتورة (مدين)</th><th>دفعة (دائن)</th><th>ملاحظات</th><th class="act-col">إجراءات</th></tr></thead><tbody>${E.map(e=>`<tr class="${e.v.overpay?'exr':''}"><td>${fmt(e.ms)}</td><td class="tl">${esc(e.s.name)}</td><td>${e.y==='i'?'🧾 فاتورة':'💸 دفعة'}</td><td>${e.y==='i'?invLabel(e.v.no):'—'}</td><td>${e.y==='i'?money(e.a):''}</td><td>${e.y==='p'?money(e.a):''}</td><td class="tl">${esc(e.v.notes||'')}${ex(e)}</td><td class="act act-col"><button class="edit-btn" onclick="txnEdit('${e.y}',${e.s.code},${ai(e)})">تعديل</button><button class="delete-btn" onclick="txnDel('${e.y}',${e.s.code},${ai(e)})">حذف</button></td></tr>`).join('')||'<tr><td colspan="8">لا توجد معاملات في هذه الفترة</td></tr>'}<tr class="tot"><td colspan="4">الإجمالي (${E.length} معاملة)</td><td>${money(sum(I))}</td><td>${money(sum(P))}</td><td></td><td class="act-col"></td></tr></tbody></table>`;
  else{const key=e=>g==='day'?dk(e.ms):g==='week'?'أسبوع يبدأ '+wk(e.ms):g==='month'?dk(e.ms).slice(0,7):dk(e.ms).slice(0,4),G={};
   E.forEach(e=>{const o=G[key(e)]=G[key(e)]||{ic:0,ia:0,pc:0,pa:0,x:0};if(e.y==='i'){o.ic++;o.ia+=e.a}else{o.pc++;o.pa+=e.a;if(e.v.overpay)o.x++}});
   body=`<table><thead><tr><th>الفترة</th><th>عدد الفواتير</th><th>إجمالي الفواتير</th><th>عدد الدفعات</th><th>إجمالي الدفعات</th><th>الصافي (فواتير − دفعات)</th><th>دفعات باستثناء</th></tr></thead><tbody>${Object.keys(G).sort().map(x=>{const o=G[x];return`<tr><td>${x}</td><td>${o.ic}</td><td>${money(o.ia)}</td><td>${o.pc}</td><td>${money(o.pa)}</td><td>${money(o.ia-o.pa)}</td><td>${o.x?'⚠ '+o.x:'—'}</td></tr>`}).join('')||'<tr><td colspan="7">لا توجد معاملات في هذه الفترة</td></tr>'}<tr class="tot"><td>الإجمالي</td><td>${I.length}</td><td>${money(sum(I))}</td><td>${P.length}</td><td>${money(sum(P))}</td><td>${money(sum(I)-sum(P))}</td><td>${X.length||'—'}</td></tr></tbody></table>`}
@@ -2253,12 +2363,19 @@ function renderTxn(){const box=$('#tr-out');if(!box)return;
  <div class="mini"><div><small>الفواتير</small><b>${I.length} · ${money(sum(I))}</b></div><div><small>الدفعات</small><b>${P.length} · ${money(sum(P))}</b></div><div class="hi"><small>صافي الحركة على الموردين</small><b>${money(sum(I)-sum(P))}</b></div><div><small>دفعات باستثناء</small><b class="${X.length?'pos':''}">${X.length}${X.length?' · زيادة '+money(X.reduce((a,e)=>a+e.v.excess,0)):''}</b></div></div>
  ${E.length?'<div class="cv"><canvas id="c-tx"></canvas></div>':''}${body}`}
 window.runTxnReport=renderTxn;
+/* إجراءات المعاملة من تقرير المعاملات: تعديل (نفس شاشات التعديل الحالية) / حذف مع تصحيح رصيد المورد */
+window.txnEdit=function(y,code,i){(y==='i'?window.editInvoice:window.editPayment)(code,i)};
+window.txnDel=function(y,code,i){const s=suppliers.find(x=>x.code==code),L=s&&(y==='i'?s.invoices:s.payments),v=L&&L[i];
+ if(!v)return toast('تعذّر العثور على المعاملة — حدّث التقرير','bad');
+ const a=y==='i'?v.amount:v.amountPaid,n=y==='i'?'الفاتورة':'الدفعة';
+ if(!confirm(`حذف ${n} بقيمة ${money(a)} للمورد «${s.name}» بتاريخ ${v.date}؟\nسيتم تصحيح رصيد المورد تلقائيًا.`))return;
+ s.currentBalance+=y==='i'?-a:a;L.splice(i,1);commit();toast('تم حذف '+n)};
 window.printTxn=function(){
  if(!$('#tr-out'))return;renderTxn();
  const w=window.open('','_blank');if(!w)return toast('اسمح بالنوافذ المنبثقة للطباعة','bad');
  /* نطبع الجدول فقط (الفواتير والدفعات + الإجمالي): بدون الرسم البياني ولا بطاقات الملخص */
  const c=$('#tr-out').cloneNode(true);
- $$('.cv,.mini,canvas,script,style,.chip',c).forEach(e=>e.remove());
+ $$('.cv,.mini,canvas,script,style,.chip,.act-col',c).forEach(e=>e.remove());$$('td[colspan="8"]',c).forEach(e=>e.colSpan=7);
  const h=c.querySelector('h3'),title=h?h.textContent.trim():'تقرير المعاملات';if(h)h.remove();
  const opt=id=>{const e=$(id);return e&&e.value?e.selectedOptions[0].textContent.trim():''};
  const sub=[opt('#tr-s'),opt('#tr-k')==='الفواتير والدفعات معًا'?'':opt('#tr-k'),'طُبع في '+new Date().toLocaleString()].filter(Boolean).join(' · ');
